@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { generateScenario, analyzeDecision } from './services/geminiService';
-import { Scenario, AnalysisResult, GameState, Difficulty } from './types';
+import { Scenario, AnalysisResult, GameState, Difficulty, HistoryItem } from './types';
 import TrackVisual from './components/TrackVisual';
 import LeverControl from './components/LeverControl';
 import AnalysisView from './components/AnalysisView';
-import { Loader2, TrainFront, Github, Gauge, ArrowLeft } from 'lucide-react';
+import HistoryView from './components/HistoryView';
+import { Loader2, TrainFront, Github, Gauge, ArrowLeft, History } from 'lucide-react';
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.IDLE);
@@ -16,6 +17,24 @@ const App: React.FC = () => {
   const [difficulty, setDifficulty] = useState<Difficulty>('MEDIUM');
   const [isReviewing, setIsReviewing] = useState<boolean>(false);
   const [hoveredTrack, setHoveredTrack] = useState<'track_a' | 'track_b' | null>(null);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+
+  // 从 localStorage 加载历史记录
+  useEffect(() => {
+    const savedHistory = localStorage.getItem('moral_tracks_history');
+    if (savedHistory) {
+        try {
+            setHistory(JSON.parse(savedHistory));
+        } catch (e) {
+            console.error("Failed to parse history", e);
+        }
+    }
+  }, []);
+
+  // 保存历史记录到 localStorage
+  useEffect(() => {
+    localStorage.setItem('moral_tracks_history', JSON.stringify(history));
+  }, [history]);
 
   // 预加载第一个场景，或者在点击开始时加载
   const startGame = async () => {
@@ -44,6 +63,19 @@ const App: React.FC = () => {
     try {
       const result = await analyzeDecision(currentScenario, choice);
       setAnalysis(result);
+
+      // Add to history
+      const newHistoryItem: HistoryItem = {
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          scenario: currentScenario,
+          userChoice: choice,
+          analysis: result,
+          difficulty: difficulty
+      };
+      // Prepend new item to history
+      setHistory(prev => [newHistoryItem, ...prev]);
+
       setGameState(GameState.RESULT);
     } catch (err) {
       setErrorMsg('分析结果失败。');
@@ -53,6 +85,12 @@ const App: React.FC = () => {
 
   const handleReviewToggle = () => {
     setIsReviewing(!isReviewing);
+  };
+
+  const clearHistory = () => {
+      if (window.confirm("确定要清空所有决策历史吗？此操作无法撤销。")) {
+          setHistory([]);
+      }
   };
 
   const difficultyColors = {
@@ -77,8 +115,21 @@ const App: React.FC = () => {
             MORAL <span className="text-accent">TRACKS</span>
           </h1>
         </div>
-        <div className="text-xs text-slate-500 font-mono hidden sm:block">
-            POWERED BY GEMINI 2.5
+        
+        <div className="flex items-center gap-4">
+             {gameState !== GameState.HISTORY && (
+                <button 
+                    onClick={() => setGameState(GameState.HISTORY)}
+                    className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
+                    title="查看历史记录"
+                >
+                    <History className="w-5 h-5" />
+                    <span className="hidden sm:inline text-sm font-mono">HISTORY</span>
+                </button>
+             )}
+            <div className="text-xs text-slate-500 font-mono hidden md:block">
+                POWERED BY GEMINI 2.5
+            </div>
         </div>
       </header>
 
@@ -253,6 +304,15 @@ const App: React.FC = () => {
                 </div>
             )}
           </>
+        )}
+
+        {/* HISTORY: 历史记录界面 */}
+        {gameState === GameState.HISTORY && (
+            <HistoryView 
+                history={history}
+                onBack={() => setGameState(GameState.IDLE)}
+                onClear={clearHistory}
+            />
         )}
 
         {/* ERROR: 错误界面 */}

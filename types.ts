@@ -33,6 +33,16 @@ export interface AnalysisResult {
 // 难度等级
 export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD' | 'EXTREME' | 'CHAOS';
 
+// 历史记录项
+export interface HistoryItem {
+  id: string;
+  timestamp: number;
+  scenario: Scenario;
+  userChoice: 'track_a' | 'track_b';
+  analysis: AnalysisResult;
+  difficulty: Difficulty;
+}
+
 // 游戏状态枚举
 export enum GameState {
   IDLE = 'IDLE',
@@ -40,5 +50,6 @@ export enum GameState {
   PLAYING = 'PLAYING',
   ANALYZING = 'ANALYZING',
   RESULT = 'RESULT',
-  ERROR = 'ERROR'
+  ERROR = 'ERROR',
+  HISTORY = 'HISTORY'
 }

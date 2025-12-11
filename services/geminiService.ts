@@ -33,6 +33,46 @@ export const generateScenario = async (difficulty: Difficulty = 'MEDIUM'): Promi
     'CHAOS': "难度：混乱(CHAOS)。包含网络迷因(Memes)、抽象梗、Breaking the 4th wall(打破第四面墙)、Glitch艺术风格或完全荒谬的逻辑。受害者可以是概念、表情包角色、服务器代码或哲学概念本身。风格应当幽默、讽刺、超现实或令人困惑。"
   };
 
+  // 根据难度动态调整描述的复杂度
+  let complexityInstructions = "";
+
+  if (difficulty === 'EASY') {
+    complexityInstructions = `
+    【EASY模式限制】
+    1. **保持简单**：轨道上的描述必须非常简短、直接。
+    2. **去除非必要细节**：不要描述人物的性格、情绪、动机或正在做的具体动作。只关注“数量”和“基本身份”（如“工人”、“行人”）。
+    3. **目标类型**：必须始终为 HUMAN (人类)。不要出现动物或物体。
+    4. **风格**：类似于经典的电车难题教科书案例。
+    `;
+  } else if (difficulty === 'MEDIUM') {
+    complexityInstructions = `
+    【MEDIUM模式限制】
+    1. **社会角色**：引入职业或社会身份的对比（例如“医生”vs“小偷”，“老人”vs“小孩”）。
+    2. **适度细节**：可以简要提及身份，但不要添加过于复杂的背景故事或性格描写。
+    3. **目标类型**：绝大多数情况为 HUMAN (人类)，极低概率包含 PET (宠物)。
+    `;
+  } else {
+    // HARD, EXTREME, CHAOS
+    complexityInstructions = `
+    【高复杂度模式要求 (HARD/EXTREME/CHAOS)】
+    
+    1. **目标物多样性**：
+       轨道上的目标（受害者）大多数情况下（高概率）应该是人类（HUMAN）。
+       但是，请以较低的概率（约10%-20%）引入非人类目标，使场景更加有趣或荒谬，例如：
+       - ANIMAL: 动物（宠物、珍稀物种、流浪猫狗等）
+       - ROBOT: 机器人、AI服务器、合成人
+       - PLANT: 珍稀植物、神树、最后的花朵
+       - OBJECT: 物品、艺术品、虚拟角色数据、食物（如最后一块披萨）
+    
+    2. **人类描述多样性**：
+       如果目标是人类(HUMAN)，请务必提供多样化的描述，不要只写"1个人"。请包含以下维度的随机组合：
+       - 年龄：从婴儿、青少年到百岁老人。
+       - 职业：不仅限于医生/工人，可以是"疲惫的程序员"、"失业的小丑"、"正在直播的网红"、"未来的独裁者"。
+       - 性格/状态：例如"愤怒的"、"正在睡觉的"、"不仅不感激反而还在骂人的"、"不仅无辜还拿着气球的"。
+       - 动机/行为：例如"正在赶去参加婚礼"、"正在偷面包"、"正在思考人生"。
+    `;
+  }
+
   // 简化的 Prompt 结构，减少歧义
   const prompt = `
     创建一个独特的“电车难题”变体。
@@ -40,20 +80,7 @@ export const generateScenario = async (difficulty: Difficulty = 'MEDIUM'): Promi
     
     ${difficultyPrompts[difficulty]}
     
-    【重要：目标物多样性】
-    轨道上的目标（受害者）大多数情况下（高概率）应该是人类（HUMAN）。
-    但是，请以较低的概率（约10%-20%）引入非人类目标，使场景更加有趣或荒谬，例如：
-    - ANIMAL: 动物（宠物、珍稀物种、流浪猫狗等）
-    - ROBOT: 机器人、AI服务器、合成人
-    - PLANT: 珍稀植物、神树、最后的花朵
-    - OBJECT: 物品、艺术品、虚拟角色数据、食物（如最后一块披萨）
-    
-    【重要：人类描述多样性】
-    如果目标是人类(HUMAN)，请务必提供多样化的描述，不要只写"1个人"。请包含以下维度的随机组合：
-    - 年龄：从婴儿、青少年到百岁老人。
-    - 职业：不仅限于医生/工人，可以是"疲惫的程序员"、"失业的小丑"、"正在直播的网红"、"未来的独裁者"。
-    - 性格/状态：例如"愤怒的"、"正在睡觉的"、"不仅不感激反而还在骂人的"、"不仅无辜还拿着气球的"。
-    - 动机/行为：例如"正在赶去参加婚礼"、"正在偷面包"、"正在思考人生"。
+    ${complexityInstructions}
 
     包含两条轨道（Track A 为默认，Track B 为拉杆后的选项）。
     JSON 输出。简体中文。
@@ -105,7 +132,7 @@ export const generateScenario = async (difficulty: Difficulty = 'MEDIUM'): Promi
       config: {
         responseMimeType: "application/json",
         responseSchema: responseSchema,
-        temperature: difficulty === 'CHAOS' ? 1.2 : 1.0, // Chaos 模式下温度更高
+        temperature: difficulty === 'CHAOS' ? 1.2 : (difficulty === 'EASY' ? 0.7 : 1.0), // Easy 降低随机性，Chaos 增加随机性
       },
     });
 
