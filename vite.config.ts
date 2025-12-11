@@ -3,13 +3,14 @@ import react from '@vitejs/plugin-react';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  // Use type assertion to avoid TypeScript error about missing 'cwd' property on 'process'
+  // Load env file based on `mode` in the current working directory.
+  // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
   const env = loadEnv(mode, (process as any).cwd(), '');
   return {
     plugins: [react()],
     define: {
-      // 这是一个客户端应用，我们需要在构建时将 process.env.API_KEY 替换为实际值
-      // 在 Vercel 中，确保在 Environment Variables 中设置了 API_KEY
+      // Expose the API key to the client-side code
+      // Safe to do here because we assume the API_KEY env var is set in the environment
       'process.env.API_KEY': JSON.stringify(env.API_KEY),
     },
   };

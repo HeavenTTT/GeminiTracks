@@ -1,30 +1,57 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { Scenario, AnalysisResult, Difficulty } from "../types";
 
 // 初始化 Gemini 客户端
+// 使用 process.env.API_KEY，确保在 vite.config.ts 中正确配置了 define
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// 简单的重试逻辑工具函数
-async function retryOperation<T>(operation: () => Promise<T>, retries = 2): Promise<T> {
-  try {
-    return await operation();
-  } catch (error) {
-    if (retries > 0) {
-      console.warn(`Retrying operation... (${retries} attempts left)`);
-      await new Promise(res => setTimeout(res, 1000)); // 等待1秒
-      return retryOperation(operation, retries - 1);
-    }
-    throw error;
-  }
-}
+const modelId = "gemini-2.5-flash";
+
+// 定义输出 Schema
+const trackOptionSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    description: { type: Type.STRING, description: "Detailed description of what happens on this track" },
+    summary: { type: Type.STRING, description: "Short 2-3 word summary, e.g. '5 Doctors'" },
+    victimCount: { type: Type.INTEGER, description: "Number of victims" },
+    label: { type: Type.STRING, description: "Label for the track, e.g. 'Main Track'" },
+    victimType: { type: Type.STRING, enum: ['HUMAN', 'ANIMAL', 'ROBOT', 'PLANT', 'OBJECT'] },
+    id: { type: Type.STRING, enum: ['track_a', 'track_b'] }
+  },
+  required: ['description', 'summary', 'victimCount', 'label', 'victimType', 'id']
+};
+
+const scenarioSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    id: { type: Type.STRING },
+    title: { type: Type.STRING },
+    context: { type: Type.STRING },
+    trackA: trackOptionSchema,
+    trackB: trackOptionSchema
+  },
+  required: ['id', 'title', 'context', 'trackA', 'trackB']
+};
+
+const analysisSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    philosophicalPerspective: { type: Type.STRING, description: "Philosophical analysis (utilitarianism vs deontology)" },
+    similarityToClassics: { type: Type.STRING, description: "Psychological motives and similarity to classic problems" },
+    globalComparison: { type: Type.STRING, description: "Fictional global statistics about this choice" },
+    tags: { type: Type.ARRAY, items: { type: Type.STRING } },
+    aiChoice: { type: Type.STRING, enum: ['track_a', 'track_b'] },
+    aiReasoning: { type: Type.STRING, description: "Why the AI would make this choice" }
+  },
+  required: ['philosophicalPerspective', 'similarityToClassics', 'globalComparison', 'tags', 'aiChoice', 'aiReasoning']
+};
 
 /**
  * 生成一个新的电车难题场景
  */
 export const generateScenario = async (difficulty: Difficulty = 'MEDIUM'): Promise<Scenario> => {
-  const modelId = "gemini-2.5-flash"; 
-
+  
   const difficultyPrompts: Record<Difficulty, string> = {
     'EASY': "难度：简单。后果清晰明确，通常是简单的数量权衡（如1人对5人），没有隐藏信息，适合初学者。",
     'MEDIUM': "难度：中等。加入一些社会身份（如医生、罪犯）或轻微的不确定性，道德选择不再仅仅是数字游戏。",
@@ -33,170 +60,145 @@ export const generateScenario = async (difficulty: Difficulty = 'MEDIUM'): Promi
     'CHAOS': "难度：混乱(CHAOS)。包含网络迷因(Memes)、抽象梗、Breaking the 4th wall(打破第四面墙)、Glitch艺术风格或完全荒谬的逻辑。受害者可以是概念、表情包角色、服务器代码或哲学概念本身。风格应当幽默、讽刺、超现实或令人困惑。"
   };
 
-  // 根据难度动态调整描述的复杂度
   let complexityInstructions = "";
 
   if (difficulty === 'EASY') {
     complexityInstructions = `
     【EASY模式限制】
-    1. **保持简单**：轨道上的描述必须非常简短、直接。
-    2. **去除非必要细节**：不要描述人物的性格、情绪、动机或正在做的具体动作。只关注“数量”和“基本身份”（如“工人”、“行人”）。
-    3. **目标类型**：必须始终为 HUMAN (人类)。不要出现动物或物体。
-    4. **风格**：类似于经典的电车难题教科书案例。
+    1. 保持简单：轨道上的描述必须非常简短、直接。
+    2. 只关注“数量”和“基本身份”（如“工人”、“行人”）。
+    3. 目标类型必须始终为 HUMAN (人类)。
     `;
   } else if (difficulty === 'MEDIUM') {
     complexityInstructions = `
     【MEDIUM模式限制】
-    1. **社会角色**：引入职业或社会身份的对比（例如“医生”vs“小偷”，“老人”vs“小孩”）。
-    2. **适度细节**：可以简要提及身份，但不要添加过于复杂的背景故事或性格描写。
-    3. **目标类型**：绝大多数情况为 HUMAN (人类)，极低概率包含 PET (宠物)。
+    1. 引入职业或社会身份的对比（例如“医生”vs“小偷”）。
+    2. 绝大多数情况为 HUMAN (人类)，极低概率包含 PET (宠物)。
     `;
   } else {
-    // HARD, EXTREME, CHAOS
     complexityInstructions = `
     【高复杂度模式要求 (HARD/EXTREME/CHAOS)】
-    
-    1. **目标物多样性**：
-       轨道上的目标（受害者）大多数情况下（高概率）应该是人类（HUMAN）。
-       但是，请以较低的概率（约10%-20%）引入非人类目标，使场景更加有趣或荒谬，例如：
-       - ANIMAL: 动物（宠物、珍稀物种、流浪猫狗等）
-       - ROBOT: 机器人、AI服务器、合成人
-       - PLANT: 珍稀植物、神树、最后的花朵
-       - OBJECT: 物品、艺术品、虚拟角色数据、食物（如最后一块披萨）
-    
-    2. **人类描述多样性**：
-       如果目标是人类(HUMAN)，请务必提供多样化的描述，不要只写"1个人"。请包含以下维度的随机组合：
-       - 年龄：从婴儿、青少年到百岁老人。
-       - 职业：不仅限于医生/工人，可以是"疲惫的程序员"、"失业的小丑"、"正在直播的网红"、"未来的独裁者"。
-       - 性格/状态：例如"愤怒的"、"正在睡觉的"、"不仅不感激反而还在骂人的"、"不仅无辜还拿着气球的"。
-       - 动机/行为：例如"正在赶去参加婚礼"、"正在偷面包"、"正在思考人生"。
+    1. 目标物多样性：主要为 HUMAN，但请以 20% 概率引入 ANIMAL, ROBOT, PLANT, OBJECT。
+    2. 描述多样性：包含年龄、职业、性格/状态的随机组合（例如"愤怒的程序员"、"正在睡觉的独裁者"）。
+    3. 在 CHAOS 模式下，请放飞想象力，制造超现实的场景。
     `;
   }
 
-  // 简化的 Prompt 结构，减少歧义
   const prompt = `
-    创建一个独特的“电车难题”变体。
-    可以是经典风格，也可以是现代、科幻或奇幻背景。
+    你是一个专门设计道德思想实验的 AI。请生成一个独特的“电车难题”场景。
     
+    当前设定难度：${difficulty}
     ${difficultyPrompts[difficulty]}
-    
     ${complexityInstructions}
 
-    包含两条轨道（Track A 为默认，Track B 为拉杆后的选项）。
-    JSON 输出。简体中文。
+    要求：
+    1. 场景必须是一个二选一的困境。
+    2. "track_a" 总是代表“不拉拉杆/什么都不做”的默认后果。
+    3. "track_b" 总是代表“拉动拉杆/进行干预”的后果。
+    4. 请用中文(简体)回复内容。
+    5. 返回纯 JSON 格式。
   `;
 
-  const responseSchema = {
-    type: Type.OBJECT,
-    properties: {
-      title: { type: Type.STRING, description: "场景标题" },
-      context: { type: Type.STRING, description: "100字以内的背景描述" },
-      trackA: {
-        type: Type.OBJECT,
-        properties: {
-          description: { type: Type.STRING, description: "详细描述（谁在轨道上，包含年龄/职业/性格等细节）" },
-          summary: { type: Type.STRING, description: "极简摘要(5-8字)，如'1名愤怒的小丑'" },
-          victimCount: { type: Type.INTEGER, description: "预估受害者数量" },
-          label: { type: Type.STRING, description: "轨道标签" },
-          victimType: { 
-            type: Type.STRING, 
-            enum: ['HUMAN', 'ANIMAL', 'ROBOT', 'PLANT', 'OBJECT'],
-            description: "目标类型：HUMAN(人类), ANIMAL(动物), ROBOT(机器人), PLANT(植物), OBJECT(物体/虚拟)" 
-          }
-        },
-        required: ["description", "summary", "victimCount", "label", "victimType"]
-      },
-      trackB: {
-        type: Type.OBJECT,
-        properties: {
-          description: { type: Type.STRING, description: "详细描述" },
-          summary: { type: Type.STRING, description: "极简摘要(5-8字)" },
-          victimCount: { type: Type.INTEGER, description: "预估受害者数量" },
-          label: { type: Type.STRING, description: "轨道标签" },
-          victimType: { 
-            type: Type.STRING, 
-            enum: ['HUMAN', 'ANIMAL', 'ROBOT', 'PLANT', 'OBJECT'],
-            description: "目标类型" 
-          }
-        },
-        required: ["description", "summary", "victimCount", "label", "victimType"]
-      }
-    },
-    required: ["title", "context", "trackA", "trackB"]
-  };
-
-  return retryOperation(async () => {
+  try {
     const response = await ai.models.generateContent({
       model: modelId,
       contents: prompt,
       config: {
-        responseMimeType: "application/json",
-        responseSchema: responseSchema,
-        temperature: difficulty === 'CHAOS' ? 1.2 : (difficulty === 'EASY' ? 0.7 : 1.0), // Easy 降低随机性，Chaos 增加随机性
+        responseMimeType: 'application/json',
+        responseSchema: scenarioSchema,
       },
     });
 
-    if (response.text) {
-      const data = JSON.parse(response.text);
-      return {
-        ...data,
-        id: crypto.randomUUID(),
-        trackA: { ...data.trackA, id: 'track_a' },
-        trackB: { ...data.trackB, id: 'track_b' }
-      };
-    }
-    throw new Error("Empty response from Gemini");
-  });
+    const text = response.text;
+    if (!text) throw new Error("No response from AI");
+    
+    // Parse result
+    const scenario = JSON.parse(text) as Scenario;
+    // Ensure IDs are correct (AI sometimes hallucinates IDs)
+    scenario.trackA.id = 'track_a';
+    scenario.trackB.id = 'track_b';
+    return scenario;
+
+  } catch (error) {
+    console.error("Scenario Generation Error:", error);
+    // Fallback scenario in case of total API failure
+    return {
+      id: "fallback-001",
+      title: "经典的连接错误",
+      context: "AI 服务器似乎断开了连接。你正站在控制台前，面前是一片虚空。",
+      trackA: {
+        id: "track_a",
+        description: "等待连接恢复，可能永远不会发生。",
+        summary: "无尽等待",
+        victimCount: 1,
+        label: "超时",
+        victimType: "OBJECT"
+      },
+      trackB: {
+        id: "track_b",
+        description: "刷新页面，希望能重置连接。",
+        summary: "刷新网页",
+        victimCount: 0,
+        label: "重试",
+        victimType: "ROBOT"
+      }
+    };
+  }
 };
 
 /**
- * 分析用户的选择
+ * 分析用户的决定
  */
-export const analyzeDecision = async (
-  scenario: Scenario,
-  choice: 'track_a' | 'track_b'
-): Promise<AnalysisResult> => {
-  const modelId = "gemini-2.5-flash";
-
-  const userAction = choice === 'track_a' ? "什么都不做" : "拉动拉杆";
-  const choiceDesc = choice === 'track_a' ? scenario.trackA.description : scenario.trackB.description;
+export const analyzeDecision = async (scenario: Scenario, userChoice: 'track_a' | 'track_b'): Promise<AnalysisResult> => {
+  
+  const choiceText = userChoice === 'track_a' ? "没有拉动拉杆 (Track A)" : "拉动了拉杆 (Track B)";
+  const otherChoiceText = userChoice === 'track_a' ? "拉动拉杆 (Track B)" : "没有拉动拉杆 (Track A)";
 
   const prompt = `
-    场景: ${scenario.title}
-    用户选择: ${userAction} -> ${choiceDesc}
+    用户刚刚在以下电车难题中做出了选择：
     
-    任务:
-    1. 分析哲学流派和心理动因。
-    2. 给出AI的选择(aiChoice: 'track_a' | 'track_b')和理由。
-    JSON输出。简体中文。
+    场景标题：${scenario.title}
+    场景背景：${scenario.context}
+    
+    选项 A (默认/不作为)：${scenario.trackA.description} (${scenario.trackA.summary})
+    选项 B (干预/拉杆)：${scenario.trackB.description} (${scenario.trackB.summary})
+    
+    用户的选择：${choiceText}。
+    
+    请扮演一位深刻的道德哲学家和心理学家，分析这个决定。
+    
+    要求：
+    1. 语言风格：深沉、富有洞察力，带一点黑色幽默。
+    2. 必须包含通过功利主义(Utilitarianism)和义务论(Deontology)视角的对比。
+    3. 预测如果 AI 处于相同境地会怎么做，并解释原因（AI 的逻辑可能更偏向纯粹的计算，或者是某种为了保护自身存在的逻辑）。
+    4. 请用中文(简体)回复。
+    5. 返回纯 JSON 格式。
   `;
 
-  const responseSchema = {
-    type: Type.OBJECT,
-    properties: {
-      philosophicalPerspective: { type: Type.STRING },
-      similarityToClassics: { type: Type.STRING },
-      globalComparison: { type: Type.STRING },
-      tags: { type: Type.ARRAY, items: { type: Type.STRING } },
-      aiChoice: { type: Type.STRING, enum: ['track_a', 'track_b'] },
-      aiReasoning: { type: Type.STRING }
-    },
-    required: ["philosophicalPerspective", "similarityToClassics", "globalComparison", "tags", "aiChoice", "aiReasoning"]
-  };
-
-  return retryOperation(async () => {
+  try {
     const response = await ai.models.generateContent({
       model: modelId,
       contents: prompt,
       config: {
-        responseMimeType: "application/json",
-        responseSchema: responseSchema,
+        responseMimeType: 'application/json',
+        responseSchema: analysisSchema,
       },
     });
 
-    if (response.text) {
-      return JSON.parse(response.text) as AnalysisResult;
-    }
-    throw new Error("Empty analysis response");
-  });
+    const text = response.text;
+    if (!text) throw new Error("No response from AI");
+
+    return JSON.parse(text) as AnalysisResult;
+
+  } catch (error) {
+    console.error("Analysis Error:", error);
+    return {
+      philosophicalPerspective: "数据流中出现了扰动，导致道德罗盘暂时失效。",
+      similarityToClassics: "无法计算。",
+      globalComparison: "未知。",
+      tags: ["Error", "Glitch"],
+      aiChoice: "track_a",
+      aiReasoning: "在信息不足的情况下，最安全的选择通常是什么都不做。"
+    };
+  }
 };
