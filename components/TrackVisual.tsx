@@ -77,7 +77,7 @@ const TrackVisual: React.FC<TrackVisualProps> = ({ trackA, trackB, selectedTrack
       // Phase 1: Result shown (Selection made)
       if (selectedTrack) {
           if (selectedTrack === track) return track === 'track_b' ? '#ef4444' : '#f8fafc'; // Highlight choice
-          return '#0f172a'; // Fade rejected to very dark
+          return '#1e293b'; // Dim rejected
       }
       
       // Phase 2: Playing (Hover state)
@@ -99,22 +99,6 @@ const TrackVisual: React.FC<TrackVisualProps> = ({ trackA, trackB, selectedTrack
       return '#64748b';
   };
 
-  // Helper for stroke width animation
-  const getStrokeWidth = (track: 'track_a' | 'track_b') => {
-      if (selectedTrack) {
-          return selectedTrack === track ? "16" : "4";
-      }
-      return hoveredTrack === track ? "14" : "12";
-  };
-
-  // Helper for stroke opacity
-  const getStrokeOpacity = (track: 'track_a' | 'track_b') => {
-      if (selectedTrack) {
-          return selectedTrack === track ? 1 : 0.2;
-      }
-      return 1;
-  };
-
   const getGlowFilter = (track: 'track_a' | 'track_b') => {
       if (selectedTrack === track) return "url(#glow-track)";
       if (!selectedTrack && hoveredTrack === track) return "url(#glow-track)";
@@ -122,7 +106,7 @@ const TrackVisual: React.FC<TrackVisualProps> = ({ trackA, trackB, selectedTrack
   };
   
   return (
-    <div className={`relative w-full h-[400px] bg-slate-900 rounded-xl overflow-hidden border transition-all duration-700 mt-6 shadow-2xl select-none
+    <div className={`relative w-full h-[400px] bg-slate-900 rounded-xl overflow-hidden border transition-all duration-500 mt-6 shadow-2xl select-none
         ${impact ? 'border-red-500/50 shadow-red-900/50' : 'border-slate-700'}
     `}>
       {/* Background Grid */}
@@ -134,7 +118,7 @@ const TrackVisual: React.FC<TrackVisualProps> = ({ trackA, trackB, selectedTrack
       <svg className="absolute inset-0 w-full h-full z-10" viewBox="0 0 1000 400" preserveAspectRatio="none">
         <defs>
             <filter id="glow-track">
-                <feGaussianBlur stdDeviation="6" result="coloredBlur"/>
+                <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
                 <feMerge>
                     <feMergeNode in="coloredBlur"/>
                     <feMergeNode in="SourceGraphic"/>
@@ -146,39 +130,35 @@ const TrackVisual: React.FC<TrackVisualProps> = ({ trackA, trackB, selectedTrack
         {/* Track B (Pull/Upper) */}
         <path d={pathB} 
               stroke={getTrackColor('track_b')}
-              strokeWidth={getStrokeWidth('track_b')}
-              strokeOpacity={getStrokeOpacity('track_b')}
+              strokeWidth={hoveredTrack === 'track_b' || selectedTrack === 'track_b' ? "12" : "12"}
               fill="none"
-              filter={getGlowFilter('track_b')}
-              className="transition-all duration-700 ease-in-out"
+              className="transition-colors duration-300"
         />
-        {/* Decorative dash line for B */}
         <path d={pathB} 
               stroke={getTrackColor('track_b')}
-              strokeWidth={selectedTrack === 'track_b' ? "6" : "2"}
-              strokeOpacity={selectedTrack && selectedTrack !== 'track_b' ? 0 : 0.6}
+              strokeWidth="6"
+              strokeOpacity={0.6}
               fill="none"
-              className="transition-all duration-700 ease-in-out"
-              strokeDasharray="10 20"
+              filter={getGlowFilter('track_b')}
+              className="transition-all duration-300"
+              strokeDasharray="10 10"
         />
 
         {/* Track A (Default/Lower/Straight) */}
         <path d={pathA} 
               stroke={getTrackColor('track_a')}
-              strokeWidth={getStrokeWidth('track_a')}
-              strokeOpacity={getStrokeOpacity('track_a')}
+              strokeWidth={hoveredTrack === 'track_a' || selectedTrack === 'track_a' ? "12" : "12"}
               fill="none" 
-              filter={getGlowFilter('track_a')}
-              className="transition-all duration-700 ease-in-out"
+              className="transition-colors duration-300"
         />
-        {/* Decorative dash line for A */}
         <path d={pathA} 
               stroke={getTrackColor('track_a')}
-              strokeWidth={selectedTrack === 'track_a' ? "6" : "2"}
-              strokeOpacity={selectedTrack && selectedTrack !== 'track_a' ? 0 : 0.6}
+              strokeWidth="6"
+              strokeOpacity={0.6}
               fill="none" 
-              className="transition-all duration-700 ease-in-out"
-              strokeDasharray="10 20"
+              filter={getGlowFilter('track_a')}
+              className="transition-all duration-300"
+              strokeDasharray="10 10"
         />
 
         {/* Start Line */}
@@ -222,14 +202,14 @@ const TrackVisual: React.FC<TrackVisualProps> = ({ trackA, trackB, selectedTrack
       </svg>
 
       {/* Option B (Pull/Upper Track) - Positioned Top Right */}
-      <div className={`absolute right-[2%] top-[10%] w-[220px] p-4 rounded-xl border backdrop-blur-sm transition-all duration-700 ease-in-out z-20 flex items-center gap-4 origin-right
+      <div className={`absolute right-[2%] top-[10%] w-[220px] p-4 rounded-xl border backdrop-blur-sm transition-all duration-300 z-20 flex items-center gap-4
         ${selectedTrack === 'track_b' 
-            ? 'border-red-500 bg-red-900/60 shadow-[0_0_50px_rgba(239,68,68,0.5)] scale-110 opacity-100 translate-x-[-10px]' 
+            ? 'border-red-500 bg-red-900/60 shadow-[0_0_40px_rgba(239,68,68,0.4)] scale-105' 
             : (hoveredTrack === 'track_b' && !selectedTrack)
-                ? 'border-red-400 bg-slate-800/90 shadow-[0_0_20px_rgba(239,68,68,0.2)] scale-105 opacity-100'
+                ? 'border-red-400 bg-slate-800/90 shadow-[0_0_20px_rgba(239,68,68,0.2)] scale-105'
                 : selectedTrack 
-                    ? 'opacity-30 border-transparent bg-slate-900/0 grayscale scale-90 blur-sm translate-x-[20px]' // Rejected state: Shrink, fade, blur
-                    : 'border-slate-600 bg-slate-800/80 opacity-90' // Default idle
+                    ? 'opacity-30 grayscale scale-95 border-slate-800' // result phase: rejected
+                    : (hoveredTrack === 'track_a' ? 'opacity-50 grayscale border-slate-700' : 'border-slate-600 bg-slate-800/80') // playing phase
          }
         ${selectedTrack === 'track_b' && impact ? 'animate-bounce' : ''}
       `}>
@@ -247,14 +227,14 @@ const TrackVisual: React.FC<TrackVisualProps> = ({ trackA, trackB, selectedTrack
       </div>
 
       {/* Option A (Default/Lower Track) - Positioned Bottom Right */}
-      <div className={`absolute right-[2%] bottom-[10%] w-[220px] p-4 rounded-xl border backdrop-blur-sm transition-all duration-700 ease-in-out z-20 flex items-center gap-4 origin-right
+      <div className={`absolute right-[2%] bottom-[10%] w-[220px] p-4 rounded-xl border backdrop-blur-sm transition-all duration-300 z-20 flex items-center gap-4
         ${selectedTrack === 'track_a' 
-            ? 'border-white bg-slate-700/80 shadow-[0_0_50px_rgba(255,255,255,0.2)] scale-110 opacity-100 translate-x-[-10px]' 
+            ? 'border-red-500 bg-red-900/60 shadow-[0_0_40px_rgba(239,68,68,0.4)] scale-105' 
             : (hoveredTrack === 'track_a' && !selectedTrack)
-                ? 'border-slate-300 bg-slate-800/90 shadow-[0_0_20px_rgba(255,255,255,0.1)] scale-105 opacity-100'
+                ? 'border-slate-300 bg-slate-800/90 shadow-[0_0_20px_rgba(255,255,255,0.1)] scale-105'
                 : selectedTrack 
-                    ? 'opacity-30 border-transparent bg-slate-900/0 grayscale scale-90 blur-sm translate-x-[20px]' // Rejected state: Shrink, fade, blur
-                    : 'border-slate-600 bg-slate-800/80 opacity-90' // Default idle
+                    ? 'opacity-30 grayscale scale-95 border-slate-800' 
+                    : (hoveredTrack === 'track_b' ? 'opacity-50 grayscale border-slate-700' : 'border-slate-600 bg-slate-800/80')
         }
         ${selectedTrack === 'track_a' && impact ? 'animate-bounce' : ''}
       `}>
@@ -273,7 +253,7 @@ const TrackVisual: React.FC<TrackVisualProps> = ({ trackA, trackB, selectedTrack
 
       {/* Warning Sign at Junction */}
       {selectedTrack === null && (
-         <div className="absolute left-[10%] top-[70%] animate-pulse z-20 pointer-events-none transition-opacity duration-300">
+         <div className="absolute left-[10%] top-[70%] animate-pulse z-20 pointer-events-none">
             <AlertTriangle className="w-8 h-8 text-yellow-500 drop-shadow-[0_0_10px_rgba(234,179,8,0.8)]" />
          </div>
       )}
